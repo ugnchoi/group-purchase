@@ -22,22 +22,6 @@ function useQuery() {
   }, []);
 }
 
-const Stat = ({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-}) => (
-  <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-    <div className="text-2xl font-semibold tracking-tight">{value}</div>
-    <div className="text-sm text-zinc-600">{label}</div>
-    {sub ? <div className="mt-1 text-xs text-zinc-500">{sub}</div> : null}
-  </div>
-);
-
 const Readonly = ({
   label,
   value,

@@ -26,32 +26,38 @@ export async function POST(req: NextRequest) {
     // Clean phone number (remove non-numeric characters)
     const cleanPhone = phone.replace(/[^0-9]/g, "");
 
-    // Find the building
-    const building = await prisma.building.findUnique({
+    // Find or create the building
+    const building = await prisma.building.upsert({
       where: { name: buildingName },
-    });
-
-    if (!building) {
-      return NextResponse.json(
-        { error: "Building not found" },
-        { status: 404 },
-      );
-    }
-
-    // Find the campaign for this building and service
-    const campaign = await prisma.campaign.findFirst({
-      where: {
-        buildingId: building.id,
-        service: serviceType,
+      update: {},
+      create: {
+        name: buildingName,
+        address:
+          buildingName === "헬리오시티"
+            ? "서울특별시 강남구"
+            : "서울특별시 양평구",
       },
     });
 
-    if (!campaign) {
-      return NextResponse.json(
-        { error: "Campaign not found" },
-        { status: 404 },
-      );
-    }
+    // Find or create the campaign for this building and service
+    const campaignId = `${buildingName === "헬리오시티" ? "helio" : "yangpyeong"}-${serviceType === "유리청소" ? "glass-cleaning" : serviceType === "방충망 보수" ? "mosquito-net" : "ac-cleaning"}`;
+
+    const campaign = await prisma.campaign.upsert({
+      where: { id: campaignId },
+      update: {},
+      create: {
+        id: campaignId,
+        service: serviceType,
+        minOrders:
+          serviceType === "유리청소"
+            ? 20
+            : serviceType === "방충망 보수"
+              ? 15
+              : 25,
+        currentOrders: 0,
+        buildingId: building.id,
+      },
+    });
 
     // Create the order
     const order = await prisma.order.create({

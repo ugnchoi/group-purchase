@@ -106,8 +106,8 @@ export async function POST() {
         yangpyeongBlue: yangpyeongBlue.name,
       },
       campaigns: {
-        helioCity: helioCampaigns.map((c: any) => c.service),
-        yangpyeongBlue: yangpyeongCampaigns.map((c: any) => c.service),
+        helioCity: helioCampaigns.map((c) => c.service),
+        yangpyeongBlue: yangpyeongCampaigns.map((c) => c.service),
       },
     });
   } catch (error) {
