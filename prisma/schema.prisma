@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Building {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  unit      String?  // optional
+  campaigns Campaign[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id            String   @id @default(cuid())
+  service       String   // e.g., "Window Cleaning"
+  minOrders     Int      // minimum to unlock
+  currentOrders Int      @default(0)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  buildingId    String
+  building      Building @relation(fields: [buildingId], references: [id])
+  orders        Order[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([buildingId])
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String
+  consent    Boolean
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  unit       String?
+  createdAt  DateTime @default(now())
+  @@index([campaignId])
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  name      String?
+  phone     String   @unique
+  building  String?
+  createdAt DateTime @default(now())
+}
