@@ -5,32 +5,83 @@ import { prisma } from "@/lib/db";
 const OrderInput = z.object({
   name: z.string().min(1),
   phone: z.string().min(8),
-  service: z.string(),
-  address: z.string(),
+  serviceType: z.enum(["유리청소", "방충망 보수", "에어컨 청소"]),
+  buildingName: z.enum(["헬리오시티", "양평벽산블루밍"]),
+  unit: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
-  const json = await req.json();
-  const parsed = OrderInput.safeParse(json);
-  if (!parsed.success) {
+  try {
+    const json = await req.json();
+    const parsed = OrderInput.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const { name, phone, serviceType, buildingName, unit } = parsed.data;
+
+    // Clean phone number (remove non-numeric characters)
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+    // Find the building
+    const building = await prisma.building.findUnique({
+      where: { name: buildingName },
+    });
+
+    if (!building) {
+      return NextResponse.json(
+        { error: "Building not found" },
+        { status: 404 },
+      );
+    }
+
+    // Find the campaign for this building and service
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        buildingId: building.id,
+        service: serviceType,
+      },
+    });
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: "Campaign not found" },
+        { status: 404 },
+      );
+    }
+
+    // Create the order
+    const order = await prisma.order.create({
+      data: {
+        name,
+        phone: cleanPhone,
+        serviceType,
+        consent: true, // Assume consent since user submitted
+        campaignId: campaign.id,
+        unit,
+      },
+    });
+
+    // Update campaign order count
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: { currentOrders: { increment: 1 } },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      orderId: order.id,
+      campaignId: campaign.id,
+      currentOrders: campaign.currentOrders + 1,
+    });
+  } catch (error) {
+    console.error("Order API error:", error);
     return NextResponse.json(
-      { error: parsed.error.flatten() },
-      { status: 400 },
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
-
-  const { name, phone, service, address } = parsed.data;
-
-  // For now, create a simple order record
-  // In a real app, you'd want to create/find campaigns and buildings
-  const order = await prisma.order.create({
-    data: {
-      name,
-      phone,
-      consent: true, // Assume consent since user submitted
-      campaignId: "temp-campaign", // We'll need to handle this properly
-    },
-  });
-
-  return NextResponse.json({ ok: true, orderId: order.id });
 }

@@ -15,7 +15,7 @@ datasource db {
 
 model Building {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique // Building name like "헬리오시티", "양평벽산블루밍"
   address   String
   unit      String?  // optional
   campaigns Campaign[]
@@ -42,6 +42,7 @@ model Order {
   id         String   @id @default(cuid())
   name       String
   phone      String
+  serviceType String  // 유리청소, 방충망 보수, 에어컨 청소
   consent    Boolean
   campaignId String
   campaign   Campaign @relation(fields: [campaignId], references: [id])

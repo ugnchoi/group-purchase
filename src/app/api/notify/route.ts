@@ -4,8 +4,8 @@ import { prisma } from "@/lib/db";
 
 const NotifyInput = z.object({
   phone: z.string().min(8),
-  service: z.string(),
-  address: z.string(),
+  serviceType: z.enum(["유리청소", "방충망 보수", "에어컨 청소"]),
+  buildingName: z.enum(["헬리오시티", "양평벽산블루밍"]),
 });
 
 export async function POST(req: NextRequest) {
@@ -21,12 +21,16 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Clean phone number (remove non-numeric characters)
+    const cleanPhone = data.phone.replace(/[^0-9]/g, "");
+
     await prisma.subscriber.upsert({
-      where: { phone: data.phone },
-      update: { building: data.address },
+      where: { phone: cleanPhone },
+      update: { building: data.buildingName },
       create: {
-        phone: data.phone,
-        building: data.address,
+        phone: cleanPhone,
+        building: data.buildingName,
       },
     });
     return NextResponse.json({ ok: true });

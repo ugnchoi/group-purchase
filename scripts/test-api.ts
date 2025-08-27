@@ -10,16 +10,23 @@ async function testDatabase() {
     await prisma.$connect();
     console.log("✅ Database connection successful");
 
-    // Check if we have the temporary campaign
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: "temp-campaign" },
+    // Check buildings
+    const buildings = await prisma.building.findMany();
+    console.log(`✅ Found ${buildings.length} buildings:`);
+    buildings.forEach((building) => {
+      console.log(`  - ${building.name} (${building.address})`);
     });
 
-    if (campaign) {
-      console.log("✅ Temporary campaign found:", campaign.service);
-    } else {
-      console.log("❌ Temporary campaign not found");
-    }
+    // Check campaigns
+    const campaigns = await prisma.campaign.findMany({
+      include: { building: true },
+    });
+    console.log(`✅ Found ${campaigns.length} campaigns:`);
+    campaigns.forEach((campaign) => {
+      console.log(
+        `  - ${campaign.building.name}: ${campaign.service} (${campaign.currentOrders}/${campaign.minOrders})`,
+      );
+    });
 
     // Check recent orders
     const orders = await prisma.order.findMany({
@@ -64,8 +71,9 @@ async function testAPIEndpoints() {
       body: JSON.stringify({
         name: "테스트 사용자",
         phone: "010-9999-8888",
-        service: "테스트 서비스",
-        address: "테스트 주소",
+        serviceType: "유리청소",
+        buildingName: "헬리오시티",
+        unit: "101동",
       }),
     });
 
@@ -87,8 +95,8 @@ async function testAPIEndpoints() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         phone: "010-7777-6666",
-        service: "알림 테스트 서비스",
-        address: "알림 테스트 주소",
+        serviceType: "방충망 보수",
+        buildingName: "양평벽산블루밍",
       }),
     });
 
