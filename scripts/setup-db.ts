@@ -103,11 +103,11 @@ async function main() {
   console.log("Campaigns created:");
   console.log(
     "헬리오시티 campaigns:",
-    helioCampaigns.map((c) => c.service),
+    helioCampaigns.map((c: any) => c.service),
   );
   console.log(
     "양평벽산블루밍 campaigns:",
-    yangpyeongCampaigns.map((c) => c.service),
+    yangpyeongCampaigns.map((c: any) => c.service),
   );
 }
 
