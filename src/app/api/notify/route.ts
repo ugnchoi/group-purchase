@@ -3,9 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 
 const NotifyInput = z.object({
-  name: z.string().optional(),
   phone: z.string().min(8),
-  building: z.string().optional(),
+  service: z.string(),
+  address: z.string(),
 });
 
 export async function POST(req: NextRequest) {
@@ -13,8 +13,11 @@ export async function POST(req: NextRequest) {
   const data = NotifyInput.parse(json);
   await prisma.subscriber.upsert({
     where: { phone: data.phone },
-    update: { name: data.name, building: data.building },
-    create: data,
+    update: { building: data.address },
+    create: {
+      phone: data.phone,
+      building: data.address,
+    },
   });
   return NextResponse.json({ ok: true });
 }

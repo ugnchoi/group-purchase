@@ -10,7 +10,8 @@
     "test": "vitest",
     "e2e": "playwright test",
     "prepare": "husky",
-    "postbuild": "next-sitemap"
+    "postbuild": "next-sitemap",
+    "db:setup": "tsx scripts/setup-db.ts"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,css,md}": [
