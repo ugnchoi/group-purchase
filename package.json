@@ -11,7 +11,8 @@
     "e2e": "playwright test",
     "prepare": "husky",
     "postbuild": "next-sitemap",
-    "db:setup": "tsx scripts/setup-db.ts"
+    "db:setup": "tsx scripts/setup-db.ts",
+    "test:api": "tsx scripts/test-api.ts"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,css,md}": [
