@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
+import { Noto_Sans_KR } from "next/font/google";
+import "./globals.css";
+
+const noto = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Group Purchase",
-  description: "Group purchase landing page with i18n support",
+  description: "Group purchase landing page",
 };
 
 export default function RootLayout({
@@ -10,5 +17,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <html lang="ko" suppressHydrationWarning>
+      <body className={noto.className}>{children}</body>
+    </html>
+  );
 }

@@ -1,10 +1,10 @@
 # Group Purchase Landing Page
 
-A modern, internationalized group purchase landing page built with Next.js, TypeScript, and Tailwind CSS. Features QR code prefill functionality, real-time progress tracking, and comprehensive form validation.
+A modern Korean group purchase landing page built with Next.js, TypeScript, and Tailwind CSS. Features QR code prefill functionality, real-time progress tracking, and comprehensive form validation.
 
 ## 🚀 Features
 
-- **Internationalization**: Korean (default) and English support with next-intl
+- **Korean Language**: Optimized for Korean users
 - **QR Code Prefill**: URL parameters automatically populate form fields
 - **Real-time Progress**: Live order tracking with progress bars
 - **Form Validation**: Comprehensive validation with Zod and phone number normalization
@@ -19,7 +19,7 @@ A modern, internationalized group purchase landing page built with Next.js, Type
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui
 - **Database**: PostgreSQL + Prisma ORM
-- **Internationalization**: next-intl
+- **Language**: Korean only
 - **Forms**: React Hook Form + Zod validation
 - **State Management**: TanStack Query
 - **Deployment**: Vercel
@@ -66,7 +66,7 @@ A modern, internationalized group purchase landing page built with Next.js, Type
 The landing page supports URL parameters for pre-filling form data:
 
 ```
-https://yourdomain.com/ko?service=Window%20Cleaning&address=Sunrise%20Apt%20%231203&unit=1203&min=25&count=7
+https://yourdomain.com?service=Window%20Cleaning&address=Sunrise%20Apt%20%231203&unit=1203&min=25&count=7
 ```
 
 **Parameters:**
@@ -107,23 +107,17 @@ vercel --prod
 ```
 src/
 ├── app/
-│   ├── [locale]/          # Internationalized routes
-│   │   ├── layout.tsx     # Locale-specific layout
-│   │   ├── page.tsx       # Landing page
-│   │   └── providers.tsx  # React Query provider
+│   ├── page.tsx           # Landing page
+│   ├── layout.tsx         # Root layout
 │   ├── api/               # API routes
 │   │   ├── order/         # Order creation
 │   │   └── notify/        # Notification signup
 │   └── globals.css        # Global styles
 ├── components/
 │   └── ui/                # shadcn/ui components
-├── lib/
-│   ├── db.ts              # Prisma client
-│   ├── i18n/              # Internationalization
-│   │   ├── locales.ts     # Supported locales
-│   │   └── messages/      # Translation files
-│   └── validation.ts      # Zod schemas
-└── middleware.ts          # Next.js middleware
+└── lib/
+    ├── db.ts              # Prisma client
+    └── validation.ts      # Zod schemas
 ```
 
 ## 🔧 Configuration

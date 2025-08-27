@@ -1,0 +1,339 @@
+0) Decisions up front (recommended stack)
+	•	Framework: Next.js (App Router) + TypeScript
+	•	Styling/UI: Tailwind CSS + shadcn/ui (+ Radix + lucide-react)
+	•	Forms/validation: react-hook-form + zod
+	•	Data fetching/state: TanStack Query
+	•	DB/ORM: Postgres (Neon/Supabase) + Prisma
+	•	Auth (later): NextAuth (if/when needed)
+	•	i18n: next-intl (App Router-native, great for ko/en)
+	•	Tooling: ESLint + Prettier (or Biome), Husky + lint-staged, Vitest + Playwright, GitHub Actions
+	•	Deploy: Vercel (preview branches + envs)
+
+
+1) Prerequisites
+# Node 20+, pnpm, git, vercel cli
+node -v
+corepack enable && corepack prepare pnpm@latest --activate
+git --version
+vercel --version || npm i -g vercel
+
+
+2) Bootstrap the app
+
+pnpm create next-app@latest group-purchase --ts --eslint --tailwind --app --src-dir --import-alias "@/*"
+cd group-purchase
+pnpm i
+
+# Helpful libs
+pnpm add @tanstack/react-query zod react-hook-form axios
+pnpm add next-intl
+pnpm add zustand # (optional lightweight state)
+
+
+3) Tailwind tune-up
+// tailwind.config.ts
+export default {
+    darkMode: ["class"],
+    content: ["./src/**/*.{ts,tsx}"],
+    theme: { extend: {} },
+    plugins: [require("tailwindcss-animate")],
+  };
+
+
+
+4) Install shadcn/ui
+# init CLI
+pnpm dlx shadcn@latest init
+# add commonly used components (you can add more anytime)
+pnpm dlx shadcn@latest add button input label form toast progress card checkbox badge separator dialog sheet dropdown-menu
+
+
+•	This generates src/components/ui/ + updates Tailwind config if needed.
+•	Keep components un-ejected; you can customize freely.
+
+
+5) Fonts for Korean audience
+// src/app/layout.tsx
+import { Noto_Sans_KR } from "next/font/google";
+const noto = Noto_Sans_KR({ subsets: ["latin"], weight: ["400","500","700"] });
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="ko" suppressHydrationWarning>
+      <body className={noto.className}>{children}</body>
+    </html>
+  );
+}
+
+6) Project structure (baseline)
+src/
+  app/
+    (marketing)/
+    api/
+      order/route.ts        # POST: create order (from landing)
+      notify/route.ts       # POST: sign up for future deals
+    [locale]/
+      layout.tsx
+      page.tsx              # main landing (QR prefill reads searchParams)
+  components/
+    ui/                     # shadcn
+    forms/                  # form fragments (name/phone consent)
+    features/
+      landing/
+      progress/
+  lib/
+    db.ts                   # Prisma client
+    i18n/
+      locales.ts            # supported locales
+      messages/             # ko.json, en.json
+    validation.ts           # zod schemas
+    sms.ts                  # abstraction for SMS provider (later)
+    config.ts               # site config (min counts defaults, etc)
+
+
+7) i18n with next-intl (ko default, en fallback)
+pnpm add next-intl
+
+// src/lib/i18n/locales.ts
+export const locales = ["ko", "en"] as const;
+export type Locale = (typeof locales)[number];
+export const defaultLocale: Locale = "ko";
+
+// src/middleware.ts
+import createMiddleware from "next-intl/middleware";
+import {locales, defaultLocale} from "@/lib/i18n/locales";
+export default createMiddleware({ locales, defaultLocale });
+export const config = { matcher: ["/((?!_next|.*\\..*).*)"] };
+
+app structure:
+src/app/[locale]/layout.tsx
+src/app/[locale]/page.tsx
+src/lib/i18n/messages/ko.json
+src/lib/i18n/messages/en.json
+
+
+8) Form + validation scaffolding
+pnpm add @hookform/resolvers libphonenumber-js
+
+	•	Create zod schemas in src/lib/validation.ts for OrderInput and NotifyInput.
+	•	Use shadcn <Form/> components + react-hook-form to render inputs.
+	•	Normalize phone numbers with libphonenumber-js (accept +82…).
+
+
+9) Data: Prisma + Postgres
+
+Pick Neon (serverless Postgres) or Supabase. Create a DB and copy its URL.
+pnpm add -D prisma
+pnpm add @prisma/client
+pnpm dlx prisma init
+
+.env:
+DATABASE_URL="postgresql://..."
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+# SMS provider (choose one later)
+SENS_ACCESS_KEY=""
+SENS_SECRET_KEY=""
+SENS_SERVICE_ID=""
+TWILIO_SID=""
+TWILIO_TOKEN=""
+TWILIO_FROM=""
+
+
+prisma/schema.prisma (starter):
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+generator client { provider = "prisma-client-js" }
+
+model Building {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  unit      String?  // optional
+  campaigns Campaign[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id            String   @id @default(cuid())
+  service       String   // e.g., "Window Cleaning"
+  minOrders     Int      // minimum to unlock
+  currentOrders Int      @default(0)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  buildingId    String
+  building      Building @relation(fields: [buildingId], references: [id])
+  orders        Order[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([buildingId])
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String
+  consent    Boolean
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  unit       String?
+  createdAt  DateTime @default(now())
+  @@index([campaignId])
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  name      String?
+  phone     String   @unique
+  building  String?
+  createdAt DateTime @default(now())
+}
+
+Migrate:
+pnpm dlx prisma migrate dev -n init
+
+Prisma client:
+// src/lib/db.ts
+import {PrismaClient} from "@prisma/client";
+export const prisma = globalThis.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") (globalThis as any).prisma = prisma;
+
+DATABASE_URL="prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqd3RfaWQiOjEsInNlY3VyZV9rZXkiOiJza19rLTgtVGUta1VUNkdsTjRWSHBSRnkiLCJhcGlfa2V5IjoiMDFLM041RjAwQ0I1Vzg5QTNSNVAxR01GV1kiLCJ0ZW5hbnRfaWQiOiI4YWM1MDE3NTg5OTczMzFjYTEwOGNjZmNiYjIyZjVhMTBhZmFlMGI5NGQ0NGFkODY3ZmU2MTgzYjBkNWJjYTYxIiwiaW50ZXJuYWxfc2VjcmV0IjoiOTgyZTkxMzMtNmI1NS00ZmZjLWE5ZGEtOTAwODRmMmVjZjA0In0.lTbn2HKaZUZkI6W7M2ecpMmNEvMOMSHxqGa_3hJG9s0"
+
+10) API routes (server actions or REST)
+
+Create REST endpoints for now:
+
+src/app/api/order/route.ts
+
+import {NextRequest, NextResponse} from "next/server";
+import {z} from "zod";
+import {prisma} from "@/lib/db";
+
+const OrderInput = z.object({
+  name: z.string().min(1),
+  phone: z.string().min(8),
+  campaignId: z.string(),
+  unit: z.string().optional(),
+  consent: z.boolean(),
+});
+
+export async function POST(req: NextRequest) {
+  const json = await req.json();
+  const parsed = OrderInput.safeParse(json);
+  if (!parsed.success) return NextResponse.json({error: parsed.error.flatten()}, {status: 400});
+
+  const {campaignId, ...rest} = parsed.data;
+  const order = await prisma.order.create({ data: { ...rest, campaignId } });
+  await prisma.campaign.update({ where: { id: campaignId }, data: { currentOrders: { increment: 1 } } });
+
+  return NextResponse.json({ ok: true, orderId: order.id });
+}
+
+src/app/api/notify/time.ts (typo; meant route.ts)
+src/app/api/notify/route.ts
+
+import {NextRequest, NextResponse} from "next/server";
+import {z} from "zod";
+import {prisma} from "@/lib/db";
+
+const NotifyInput = z.object({
+  name: z.string().optional(),
+  phone: z.string().min(8),
+  building: z.string().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  const json = await req.json();
+  const data = NotifyInput.parse(json);
+  await prisma.subscriber.upsert({
+    where: { phone: data.phone },
+    update: { name: data.name, building: data.building },
+    create: data,
+  });
+  return NextResponse.json({ ok: true });
+}
+
+11) Landing page scaffold with QR prefill (App Router)	•	Route at src/app/[locale]/page.tsx
+	•	Read searchParams (service, address, unit, campaignId).
+	•	Use shadcn <Form/> components and <Progress/>.
+	•	Use TanStack Query to poll /api/campaign/[id] for live counts (or Server Components + revalidate).
+
+Example page signature:
+// src/app/[locale]/page.tsx
+export default function Landing({ searchParams }: { searchParams: Record<string,string|undefined> }) {
+  // const { service, address, unit, campaignId } = searchParams;
+  // render form + progress bar with shadcn components
+}
+
+12) Add React Query provider
+
+// src/app/[locale]/providers.tsx
+"use client";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+export default function Providers({children}:{children:React.ReactNode}) {
+  const [client] = React.useState(() => new QueryClient());
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+// in [locale]/layout.tsx wrap <Providers>
+
+13) SEO + sitemap + robots
+
+pnpm add next-sitemap
+
+	•	Configure next-sitemap.config.js with default locale ko and altLinks for en.
+	•	Use Next.js generateMetadata per locale to output Korean titles/descriptions.
+
+
+    14) Quality & DX
+
+    pnpm add -D eslint prettier eslint-config-next @typescript-eslint/parser @typescript-eslint/eslint-plugin
+pnpm add -D husky lint-staged
+pnpm add -D vitest @testing-library/react @testing-library/jest-dom jsdom
+pnpm add -D playwright
+
+package.json snippets:
+
+{
+    "scripts": {
+      "dev":"next dev",
+      "build":"next build",
+      "start":"next start",
+      "lint":"next lint",
+      "test":"vitest",
+      "e2e":"playwright test"
+    },
+    "lint-staged": { "*.{ts,tsx,js,jsx,json,css,md}": ["prettier --write"] }
+  }
+
+  npx husky init
+echo 'pnpm lint-staged' > .husky/pre-commit
+
+
+15) Environment management
+	•	Create .env.local, .env.preview, .env.production.
+	•	In Vercel, define the same env keys and link project:
+vercel link → vercel env pull .env.local
+
+
+16) Deploy
+
+pnpm build
+vercel
+vercel --prod
+
+Set Build & Output: Framework Next.js; connect GitHub for preview deployments on PRs.
+
+
+17) Korean-ready details to finish later
+	•	Replace copy with ko.json, e.g.:
+
+    {
+        "landing": {
+          "cta": "공동구매 참여하기",
+          "howItWorks": "진행 방식",
+          "progress": "{joined} / {min}명 참여",
+          "unlocked": "공동구매 확정! 🎉",
+          "remaining": "{remaining}명 더 필요"
+        }
+      }
