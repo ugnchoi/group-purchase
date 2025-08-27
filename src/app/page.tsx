@@ -105,6 +105,15 @@ export default function Landing() {
     e.preventDefault();
     if (!consent) return;
 
+    // Clean phone number (remove all non-numeric characters)
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+    // Validate phone number (should be 10-11 digits for Korean numbers)
+    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+      alert("올바른 전화번호를 입력해주세요 (10-11자리 숫자)");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch("/api/order", {
@@ -112,7 +121,7 @@ export default function Landing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          phone,
+          phone: cleanPhone,
           serviceType: selectedServiceType,
           buildingName,
           unit,
@@ -123,6 +132,8 @@ export default function Landing() {
         setSubmitted(true);
         setCurrentOrders((prev) => prev + 1);
       } else {
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
         throw new Error("Failed to submit order");
       }
     } catch (error) {
@@ -135,13 +146,23 @@ export default function Landing() {
 
   const handleNotifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Clean phone number (remove all non-numeric characters)
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+    // Validate phone number (should be 10-11 digits for Korean numbers)
+    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+      alert("올바른 전화번호를 입력해주세요 (10-11자리 숫자)");
+      return;
+    }
+
     setNotifySubmitting(true);
     try {
       const response = await fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone,
+          phone: cleanPhone,
           serviceType: selectedServiceType,
           buildingName,
         }),
@@ -150,6 +171,8 @@ export default function Landing() {
       if (response.ok) {
         setNotifySubmitted(true);
       } else {
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
         throw new Error("Failed to submit notification request");
       }
     } catch (error) {
@@ -320,7 +343,7 @@ export default function Landing() {
                 onChange={(e) => setPhone(e.target.value)}
                 required
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
-                placeholder="010-1234-5678"
+                placeholder="01012345678 또는 010-1234-5678"
               />
             </div>
             <div className="flex items-center space-x-2">
