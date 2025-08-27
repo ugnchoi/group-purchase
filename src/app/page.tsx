@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function useQuery() {
   return useMemo(() => {
@@ -65,9 +72,11 @@ export default function Landing() {
   const [notifySubmitted, setNotifySubmitted] = useState(false);
 
   // Prefill values from QR URL
-  const service = q.get("service") || "홈 서비스";
-  const address = q.get("address") || "귀하의 아파트";
+  const buildingName = q.get("buildingName") || "헬리오시티";
   const unit = q.get("unit") || ""; // optional
+
+  // Service type state (user can select from dropdown)
+  const [selectedServiceType, setSelectedServiceType] = useState("유리청소");
 
   // Orders progress
   const minimumOrders = Number(q.get("min") || 20);
@@ -79,8 +88,8 @@ export default function Landing() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        // Replace with your real endpoint, e.g., `/api/group-purchase/status?service=...&address=...`
-        // const res = await fetch(`/api/orders/status?service=${encodeURIComponent(service)}&address=${encodeURIComponent(address)}`);
+        // Replace with your real endpoint, e.g., `/api/group-purchase/status?serviceType=...&buildingName=...`
+        // const res = await fetch(`/api/orders/status?serviceType=${encodeURIComponent(serviceType)}&buildingName=${encodeURIComponent(buildingName)}`);
         // const data = await res.json();
         // if (typeof data.currentOrders === 'number') setCurrentOrders(data.currentOrders);
       } catch {
@@ -90,7 +99,7 @@ export default function Landing() {
     return () => {
       clearInterval(interval);
     };
-  }, [service, address]);
+  }, [selectedServiceType, buildingName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,8 +113,9 @@ export default function Landing() {
         body: JSON.stringify({
           name,
           phone,
-          service,
-          address: unit ? `${address} ${unit}` : address,
+          serviceType: selectedServiceType,
+          buildingName,
+          unit,
         }),
       });
 
@@ -132,8 +142,8 @@ export default function Landing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone,
-          service,
-          address: unit ? `${address} ${unit}` : address,
+          serviceType: selectedServiceType,
+          buildingName,
         }),
       });
 
@@ -164,7 +174,8 @@ export default function Landing() {
                 주문이 완료되었습니다!
               </h1>
               <p className="mb-8 text-lg text-gray-600">
-                {name}님의 {service} 주문이 성공적으로 접수되었습니다.
+                {name}님의 {selectedServiceType} 주문이 성공적으로
+                접수되었습니다.
               </p>
               <div className="space-y-4 rounded-2xl bg-blue-50 p-6">
                 <h2 className="text-xl font-semibold text-blue-900">
@@ -173,13 +184,11 @@ export default function Landing() {
                 <div className="space-y-2 text-left">
                   <div className="flex justify-between">
                     <span className="text-blue-700">서비스:</span>
-                    <span className="font-medium">{service}</span>
+                    <span className="font-medium">{selectedServiceType}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-blue-700">주소:</span>
-                    <span className="font-medium">
-                      {unit ? `${address} ${unit}` : address}
-                    </span>
+                    <span className="text-blue-700">건물:</span>
+                    <span className="font-medium">{buildingName}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-blue-700">연락처:</span>
@@ -211,7 +220,7 @@ export default function Landing() {
             공동구매 참여
           </h1>
           <p className="text-lg text-gray-600">
-            {service} 서비스를 {address}에서 함께 이용해보세요
+            {selectedServiceType} 서비스를 {buildingName}에서 함께 이용해보세요
           </p>
         </div>
 
@@ -249,12 +258,28 @@ export default function Landing() {
             서비스 정보
           </h2>
           <div className="space-y-4">
-            <Readonly label="서비스" value={service} id="service" />
-            <Readonly
-              label="주소"
-              value={unit ? `${address} ${unit}` : address}
-              id="address"
-            />
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="service"
+                className="text-sm font-medium text-gray-800"
+              >
+                서비스 선택 *
+              </Label>
+              <Select
+                value={selectedServiceType}
+                onValueChange={setSelectedServiceType}
+              >
+                <SelectTrigger className="w-full rounded-xl border border-gray-200 px-3 py-2">
+                  <SelectValue placeholder="서비스를 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="유리청소">유리청소</SelectItem>
+                  <SelectItem value="방충망 보수">방충망 보수</SelectItem>
+                  <SelectItem value="에어컨 청소">에어컨 청소</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Readonly label="건물" value={buildingName} id="building" />
           </div>
         </div>
 
