@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 const noto = Noto_Sans_KR({
   subsets: ["latin"],
@@ -19,7 +20,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className={noto.className}>{children}</body>
+      <body className={noto.className}>
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }

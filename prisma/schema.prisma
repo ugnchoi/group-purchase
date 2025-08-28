@@ -58,3 +58,21 @@ model Subscriber {
   building  String?
   createdAt DateTime @default(now())
 }
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  event       String   // page_view, order_submitted, notify_submitted
+  timestamp   DateTime
+  sessionId   String
+  campaignId  String?
+  serviceType String?
+  buildingName String?
+  userAgent   String?
+  referrer    String?
+  createdAt   DateTime @default(now())
+  
+  @@index([event])
+  @@index([timestamp])
+  @@index([sessionId])
+  @@index([campaignId])
+}

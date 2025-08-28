@@ -5,8 +5,7 @@ import { prisma } from "@/lib/db";
 const OrderInput = z.object({
   name: z.string().min(1),
   phone: z.string().min(8),
-  serviceType: z.enum(["유리청소", "방충망 보수", "에어컨 청소"]),
-  buildingName: z.enum(["헬리오시티", "양평벽산블루밍"]),
+  campaignId: z.string().min(1),
   unit: z.string().optional(),
 });
 
@@ -21,50 +20,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, phone, serviceType, buildingName, unit } = parsed.data;
+    const { name, phone, campaignId, unit } = parsed.data;
 
     // Clean phone number (remove non-numeric characters)
     const cleanPhone = phone.replace(/[^0-9]/g, "");
 
-    // Find or create the building
-    const building = await prisma.building.upsert({
-      where: { name: buildingName },
-      update: {},
-      create: {
-        name: buildingName,
-        address:
-          buildingName === "헬리오시티"
-            ? "서울특별시 강남구"
-            : "서울특별시 양평구",
-      },
-    });
-
-    // Find or create the campaign for this building and service
-    const campaignId = `${buildingName === "헬리오시티" ? "helio" : "yangpyeong"}-${serviceType === "유리청소" ? "glass-cleaning" : serviceType === "방충망 보수" ? "mosquito-net" : "ac-cleaning"}`;
-
-    const campaign = await prisma.campaign.upsert({
+    // Find the campaign
+    const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      update: {},
-      create: {
-        id: campaignId,
-        service: serviceType,
-        minOrders:
-          serviceType === "유리청소"
-            ? 20
-            : serviceType === "방충망 보수"
-              ? 15
-              : 25,
-        currentOrders: 0,
-        buildingId: building.id,
-      },
+      include: { building: true },
     });
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: "Campaign not found" },
+        { status: 404 },
+      );
+    }
 
     // Create the order
     const order = await prisma.order.create({
       data: {
         name,
         phone: cleanPhone,
-        serviceType,
+        serviceType: campaign.service,
         consent: true, // Assume consent since user submitted
         campaignId: campaign.id,
         unit,

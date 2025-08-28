@@ -4,8 +4,7 @@ import { prisma } from "@/lib/db";
 
 const NotifyInput = z.object({
   phone: z.string().min(8),
-  serviceType: z.enum(["유리청소", "방충망 보수", "에어컨 청소"]),
-  buildingName: z.enum(["헬리오시티", "양평벽산블루밍"]),
+  campaignId: z.string().min(1),
 });
 
 export async function POST(req: NextRequest) {
@@ -20,17 +19,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = parsed.data;
+    const { phone, campaignId } = parsed.data;
 
     // Clean phone number (remove non-numeric characters)
-    const cleanPhone = data.phone.replace(/[^0-9]/g, "");
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+    // Find the campaign to get building info
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { building: true },
+    });
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: "Campaign not found" },
+        { status: 404 },
+      );
+    }
 
     await prisma.subscriber.upsert({
       where: { phone: cleanPhone },
-      update: { building: data.buildingName },
+      update: { building: campaign.building.name },
       create: {
         phone: cleanPhone,
-        building: data.buildingName,
+        building: campaign.building.name,
       },
     });
     return NextResponse.json({ ok: true });

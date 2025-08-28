@@ -12,6 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { parsePhoneNumber } from "libphonenumber-js";
+import { toast } from "sonner";
+import {
+  trackPageView,
+  trackOrderSubmitted,
+  trackNotifySubmitted,
+} from "@/lib/analytics";
 
 function useQuery() {
   return useMemo(() => {
@@ -49,11 +56,17 @@ export default function Landing() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [notifyPhone, setNotifyPhone] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [notifySubmitting, setNotifySubmitting] = useState(false);
   const [notifySubmitted, setNotifySubmitted] = useState(false);
+
+  // Validation states
+  const [nameError, setNameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [notifyPhoneError, setNotifyPhoneError] = useState("");
 
   // Prefill values from QR URL
   const buildingName = q.get("buildingName") || "헬리오시티";
@@ -62,39 +75,112 @@ export default function Landing() {
   // Service type state (user can select from dropdown)
   const [selectedServiceType, setSelectedServiceType] = useState("유리청소");
 
-  // Orders progress
-  const minimumOrders = Number(q.get("min") || 20);
-  const [currentOrders, setCurrentOrders] = useState(
-    Number(q.get("count") || 0),
-  );
+  // Campaign state
+  const [campaignId, setCampaignId] = useState("");
+  const [minimumOrders, setMinimumOrders] = useState(20);
+  const [currentOrders, setCurrentOrders] = useState(0);
+  const [campaignLoading, setCampaignLoading] = useState(true);
 
-  // Optional: poll backend for up-to-date counts
+  // Validation functions
+  const validateName = (value: string): string => {
+    if (!value.trim()) {
+      return "이름을 입력해주세요";
+    }
+    if (value.trim().length < 2) {
+      return "이름은 2자 이상 입력해주세요";
+    }
+    if (value.trim().length > 20) {
+      return "이름은 20자 이하로 입력해주세요";
+    }
+    return "";
+  };
+
+  const validatePhone = (value: string): string => {
+    if (!value.trim()) {
+      return "전화번호를 입력해주세요";
+    }
+
+    try {
+      const phoneNumber = parsePhoneNumber(value, "KR");
+      if (!phoneNumber || !phoneNumber.isValid()) {
+        return "올바른 전화번호 형식을 입력해주세요";
+      }
+      return "";
+    } catch {
+      return "올바른 전화번호 형식을 입력해주세요";
+    }
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    setNameError(validateName(value));
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    setPhoneError(validatePhone(value));
+  };
+
+  // Load campaign data
   useEffect(() => {
+    const loadCampaign = async () => {
+      try {
+        const response = await fetch(
+          `/api/campaigns?buildingName=${encodeURIComponent(buildingName)}&serviceType=${encodeURIComponent(selectedServiceType)}`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setCampaignId(data.campaignId);
+          setMinimumOrders(data.minOrders);
+          setCurrentOrders(data.currentOrders);
+
+          // Track page view with campaign data
+          trackPageView(data.campaignId, selectedServiceType, buildingName);
+        }
+      } catch (error) {
+        console.error("Error loading campaign:", error);
+      } finally {
+        setCampaignLoading(false);
+      }
+    };
+
+    loadCampaign();
+  }, [buildingName, selectedServiceType]);
+
+  // Poll for updated campaign data
+  useEffect(() => {
+    if (!campaignId) return;
+
     const interval = setInterval(async () => {
       try {
-        // Replace with your real endpoint, e.g., `/api/group-purchase/status?serviceType=...&buildingName=...`
-        // const res = await fetch(`/api/orders/status?serviceType=${encodeURIComponent(serviceType)}&buildingName=${encodeURIComponent(buildingName)}`);
-        // const data = await res.json();
-        // if (typeof data.currentOrders === 'number') setCurrentOrders(data.currentOrders);
+        const response = await fetch(
+          `/api/campaigns?buildingName=${encodeURIComponent(buildingName)}&serviceType=${encodeURIComponent(selectedServiceType)}`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentOrders(data.currentOrders);
+        }
       } catch {
         // Silently ignore polling errors in UI
       }
     }, 15_000);
+
     return () => {
       clearInterval(interval);
     };
-  }, [selectedServiceType, buildingName]);
+  }, [campaignId, buildingName, selectedServiceType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consent) return;
 
-    // Clean phone number (remove all non-numeric characters)
-    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    // Validate form before submission
+    const nameValidation = validateName(name);
+    const phoneValidation = validatePhone(phone);
 
-    // Validate phone number (should be 10-11 digits for Korean numbers)
-    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-      alert("올바른 전화번호를 입력해주세요 (10-11자리 숫자)");
+    setNameError(nameValidation);
+    setPhoneError(phoneValidation);
+
+    if (nameValidation || phoneValidation || !consent) {
       return;
     }
 
@@ -104,10 +190,9 @@ export default function Landing() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          phone: cleanPhone,
-          serviceType: selectedServiceType,
-          buildingName,
+          name: name.trim(),
+          phone,
+          campaignId,
           unit,
         }),
       });
@@ -115,6 +200,9 @@ export default function Landing() {
       if (response.ok) {
         setSubmitted(true);
         setCurrentOrders((prev) => prev + 1);
+
+        // Track order submission
+        trackOrderSubmitted(campaignId, selectedServiceType, buildingName);
       } else {
         const errorData = await response.json();
         console.error("API Error:", errorData);
@@ -122,7 +210,7 @@ export default function Landing() {
       }
     } catch (error) {
       console.error("Error submitting order:", error);
-      alert("주문 제출 중 오류가 발생했습니다. 다시 시도해 주세요.");
+      toast.error("주문 제출 중 오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -131,12 +219,11 @@ export default function Landing() {
   const handleNotifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Clean phone number (remove all non-numeric characters)
-    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    // Validate phone for notification
+    const phoneValidation = validatePhone(notifyPhone);
+    setNotifyPhoneError(phoneValidation);
 
-    // Validate phone number (should be 10-11 digits for Korean numbers)
-    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-      alert("올바른 전화번호를 입력해주세요 (10-11자리 숫자)");
+    if (phoneValidation) {
       return;
     }
 
@@ -146,14 +233,16 @@ export default function Landing() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: cleanPhone,
-          serviceType: selectedServiceType,
-          buildingName,
+          phone: notifyPhone,
+          campaignId,
         }),
       });
 
       if (response.ok) {
         setNotifySubmitted(true);
+
+        // Track notification submission
+        trackNotifySubmitted(campaignId, selectedServiceType, buildingName);
       } else {
         const errorData = await response.json();
         console.error("API Error:", errorData);
@@ -161,7 +250,7 @@ export default function Landing() {
       }
     } catch (error) {
       console.error("Error submitting notification request:", error);
-      alert("알림 요청 제출 중 오류가 발생했습니다. 다시 시도해 주세요.");
+      toast.error("알림 요청 제출 중 오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setNotifySubmitting(false);
     }
@@ -239,11 +328,21 @@ export default function Landing() {
               {currentOrders}/{minimumOrders}명
             </span>
           </div>
-          <div className="mb-4 h-3 rounded-full bg-gray-200">
+          <div
+            className="mb-4 h-3 rounded-full bg-gray-200"
+            role="progressbar"
+            aria-valuenow={currentOrders}
+            aria-valuemin={0}
+            aria-valuemax={minimumOrders}
+            aria-label={`주문 진행률: ${currentOrders}명 중 ${minimumOrders}명 달성`}
+          >
             <div
               className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
+          </div>
+          <div className="text-center text-sm text-gray-500 mb-2">
+            {Math.round(progress)}% 완료
           </div>
           <div className="text-center">
             {remaining > 0 ? (
@@ -307,11 +406,14 @@ export default function Landing() {
                 id="name"
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 required
-                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+                className={`w-full rounded-xl border px-3 py-2 ${
+                  nameError ? "border-red-500" : "border-gray-200"
+                }`}
                 placeholder="홍길동"
               />
+              {nameError && <p className="text-sm text-red-500">{nameError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label
@@ -324,11 +426,16 @@ export default function Landing() {
                 id="phone"
                 type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => handlePhoneChange(e.target.value)}
                 required
-                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+                className={`w-full rounded-xl border px-3 py-2 ${
+                  phoneError ? "border-red-500" : "border-gray-200"
+                }`}
                 placeholder="01012345678 또는 010-1234-5678"
               />
+              {phoneError && (
+                <p className="text-sm text-red-500">{phoneError}</p>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -343,10 +450,14 @@ export default function Landing() {
             </div>
             <Button
               type="submit"
-              disabled={!consent || submitting}
+              disabled={!consent || submitting || campaignLoading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
             >
-              {submitting ? "제출 중..." : "주문하기"}
+              {submitting
+                ? "제출 중..."
+                : campaignLoading
+                  ? "로딩 중..."
+                  : "주문하기"}
             </Button>
           </form>
         </div>
@@ -375,19 +486,31 @@ export default function Landing() {
                 <Input
                   id="notify-phone"
                   type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2"
+                  value={notifyPhone}
+                  onChange={(e) => {
+                    setNotifyPhone(e.target.value);
+                    setNotifyPhoneError(validatePhone(e.target.value));
+                  }}
+                  className={`w-full rounded-xl border px-3 py-2 ${
+                    notifyPhoneError ? "border-red-500" : "border-gray-200"
+                  }`}
                   placeholder="010-1234-5678"
                 />
+                {notifyPhoneError && (
+                  <p className="text-sm text-red-500">{notifyPhoneError}</p>
+                )}
               </div>
               <Button
                 type="submit"
-                disabled={notifySubmitting}
+                disabled={notifySubmitting || campaignLoading}
                 variant="outline"
                 className="w-full"
               >
-                {notifySubmitting ? "신청 중..." : "알림 신청하기"}
+                {notifySubmitting
+                  ? "신청 중..."
+                  : campaignLoading
+                    ? "로딩 중..."
+                    : "알림 신청하기"}
               </Button>
             </form>
           )}
